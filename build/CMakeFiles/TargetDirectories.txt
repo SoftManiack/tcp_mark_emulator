@@ -1,6 +1,0 @@
-/home/artem/development/c++/tcp_laser_emulator/build/CMakeFiles/server.dir
-/home/artem/development/c++/tcp_laser_emulator/build/CMakeFiles/edit_cache.dir
-/home/artem/development/c++/tcp_laser_emulator/build/CMakeFiles/rebuild_cache.dir
-/home/artem/development/c++/tcp_laser_emulator/build/_deps/spdlog-build/CMakeFiles/spdlog.dir
-/home/artem/development/c++/tcp_laser_emulator/build/_deps/spdlog-build/CMakeFiles/edit_cache.dir
-/home/artem/development/c++/tcp_laser_emulator/build/_deps/spdlog-build/CMakeFiles/rebuild_cache.dir

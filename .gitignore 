@@ -1,0 +1,40 @@
+# Игнорируем папку сборки (build/, cmake-build-debug/, etc.)
+/build/
+/cmake-build-*/
+/out/
+/x64/
+/x86/
+
+# Игнорируем сгенерированные CMake файлы
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Игнорируем бинарные и исполняемые файлы
+*.exe
+*.out
+*.app
+*.so
+*.dll
+*.a
+*.lib
+*.o
+*.obj
+
+# Игнорируем логи (если они в проекте, а не в /var/log/)
+/logs/
+*.log
+
+# Игнорируем IDE-специфичные файлы (CLion, VS Code, etc.)
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln
+
+# Прочие временные файлы
+*.swp
+*~
+.DS_Store
