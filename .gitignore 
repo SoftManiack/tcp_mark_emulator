@@ -4,6 +4,7 @@
 /out/
 /x64/
 /x86/
+/logs
 
 # Игнорируем сгенерированные CMake файлы
 CMakeCache.txt
