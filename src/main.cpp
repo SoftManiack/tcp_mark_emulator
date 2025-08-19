@@ -8,6 +8,9 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <optional>
+#include <regex>
+#include <chrono>
+#include <thread>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h> 
 
@@ -27,14 +30,19 @@ class LaserMark {
         Status statusLaser_; 
         const std::string GET_STATUS_COMMAND_ =  "<GetStatus>\n";
         const std::string START_MARK_COMMAND_ =  "<StartMark>\n";
+        const char* responseSetTemplate_ = "Шаблон Установлен\n";
+        struct CodeData {
+            std::unordered_map<std::string, std::string> fields;  
+        };
+        CodeData template_;
 
-        std::string statusToString(Status status) {
+        const char* statusToChar(Status status) {
             static const std::unordered_map<Status, std::string> statusMap = {
                 {Status::Free, "Free"},
                 {Status::Mark, "Mark"},
                 {Status::Error, "Error"}
             };
-            return statusMap.at(status);
+            return (statusMap.at(status)).c_str();
         }
 
         std::optional<Status> stringToStatus(const std::string& str) {
@@ -49,7 +57,35 @@ class LaserMark {
             }
             return std::nullopt;  
         }
+        bool parseTemplate(const std::string& input) {
+            std::regex pattern(R"(^Template:\{([A-Za-z0-9]+:[0-9]{1,200}(?:,[A-Za-z0-9]+:[0-9]{1,200})*)\}$)");
+            std::smatch matches;
+
+            std::string cleanedInput;
+            for (char c : input) {
+                if (c != '\n') cleanedInput += c;
+            }
+            
+            if (!std::regex_match(cleanedInput, matches, pattern)) {
+                return false;
+            }
+
+            std::string content = matches[1].str();
+            std::regex pairRegex(R"(([A-Za-z0-9]+):([0-9]{1,200}))");
+            auto begin = std::sregex_iterator(content.begin(), content.end(), pairRegex);
+            auto end = std::sregex_iterator();
+            
+            for (auto it = begin; it != end; ++it) {
+                std::smatch fieldMatch = *it;
+                template_.fields[fieldMatch[1].str()] = fieldMatch[2].str();  // {Имя: Значение}
+            }
+
+            return true;
+        }
     public:
+        LaserMark(){
+            statusLaser_ = Status::Free;
+        }
         int startServer(){
 
             serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);
@@ -109,46 +145,75 @@ class LaserMark {
 
                 // <GetStatus>
                 // <SetTemplate;(21)2000000000343422(91)9020323>
-                // <Mark>
+                // <StartMark>
                 // <GetLog>
                 
+                //Template:{Code1:120012020101221,Code2:210323233223232332101221,Code3:1000}
                 buffer[bytesRead] = '\0';
+                
+                const char* response = "Неверный формат\n";
 
-                const char* response = "Сообщение получено\n";
                 std::string str = buffer;   
 
+                bool isTemplate = parseTemplate(str);
+                
                 if(str == GET_STATUS_COMMAND_){
-                    std::cout << "<GetStatus>" << buffer << std::endl;
-                } else if (str == START_MARK_COMMAND_) {
-                    std::cout << "<StartMark>" << buffer << std::endl;
+                    handlerStatus();
+                } else if(str == START_MARK_COMMAND_) {
+                    handlerMark();
+                } else if(isTemplate){
+                    for (const auto& [fieldName, fieldValue] : template_.fields ) {
+                        std::cout << fieldName << " = " << fieldValue << "\n";
+                    }
+                    if (send(clientSocket_, responseSetTemplate_, strlen(responseSetTemplate_), 0) < 0) {
+                        std::cerr << "Ошибка отправки: " << strerror(errno) << std::endl;
+                        break;
+                    }
                 } else {
-                    std::cout << "Получено: " << buffer << std::endl;
-                }
-
-                if (send(clientSocket_, response, strlen(response), 0) < 0) {
-                    std::cerr << "Ошибка отправки: " << strerror(errno) << std::endl;
-                    break;
+                    if (send(clientSocket_, response, strlen(response), 0) < 0) {
+                        std::cerr << "Ошибка отправки: " << strerror(errno) << std::endl;
+                        break;
+                    }
                 }
             }
 
             close(clientSocket_);
             return 0;
-
         }
 
-        std::string handlerStatus(){
-            return statusToString(statusLaser_);
-        }
-        void handlerSetTemplate(){
-            
+        void handlerStatus(){
+            const char* response = statusToChar(Status::Free); 
+
+            if (send(clientSocket_, response, strlen(response), 0) < 0) {
+                spdlog::error("Ошибка при попытке получить статус");
+            }
+
         }
         void handlerMark(){
+            
+            const char* responseStart = "Маркировка началась\n";
+            const char* responseEnd = "Маркировка закончена\n";
+
+            spdlog::info("Маркировка началась");
+
+            if (send(clientSocket_, responseStart, strlen(responseStart), 0) < 0) {
+                spdlog::error("Маркировка");
+            }
+
+            statusLaser_ = Status::Mark;
+            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+            statusLaser_ = Status::Free;
+
+            spdlog::info("Маркировка закончена");
+
+            if (send(clientSocket_, responseEnd, strlen(responseEnd), 0) < 0) {
+                spdlog::error("Маркировка");
+            }
 
         }   
-        void handlerLog(){
+        void handlerGetLog(){
             
         }
-        
 };
 
 int main(){
