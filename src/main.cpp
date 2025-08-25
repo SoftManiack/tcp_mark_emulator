@@ -10,6 +10,8 @@
 #include <optional>
 #include <regex>
 #include <chrono>
+#include <vector>
+#include <fstream> 
 #include <thread>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h> 
@@ -30,7 +32,9 @@ class LaserMark {
         Status statusLaser_; 
         const std::string GET_STATUS_COMMAND_ =  "<GetStatus>\n";
         const std::string START_MARK_COMMAND_ =  "<StartMark>\n";
+        const std::string GET_LOG_COMMAND_ =  "<GetLog>\n";
         const char* responseSetTemplate_ = "Шаблон Установлен\n";
+        
         struct CodeData {
             std::unordered_map<std::string, std::string> fields;  
         };
@@ -110,6 +114,7 @@ class LaserMark {
                 return 1;
             }
 
+            spdlog::info("Сервер запущен (макс. 1 подключение)");
             std::cout << "Сервер запущен (макс. 1 подключение)" << std::endl;
 
             // Принимаем только одно подключение
@@ -143,11 +148,6 @@ class LaserMark {
                     break;
                 }
 
-                // <GetStatus>
-                // <SetTemplate;(21)2000000000343422(91)9020323>
-                // <StartMark>
-                // <GetLog>
-                
                 //Template:{Code1:120012020101221,Code2:210323233223232332101221,Code3:1000}
                 buffer[bytesRead] = '\0';
                 
@@ -161,6 +161,8 @@ class LaserMark {
                     handlerStatus();
                 } else if(str == START_MARK_COMMAND_) {
                     handlerMark();
+                } else if(str == GET_LOG_COMMAND_){
+                    handlerGetLog();
                 } else if(isTemplate){
                     for (const auto& [fieldName, fieldValue] : template_.fields ) {
                         std::cout << fieldName << " = " << fieldValue << "\n";
@@ -211,8 +213,32 @@ class LaserMark {
             }
 
         }   
+
         void handlerGetLog(){
+            std::ifstream file("../logs/server.log");
+    
+            if (!file.is_open()) {
+                spdlog::error("Не удалось открыть файл!");
+            }
             
+            std::vector<std::string> lines;
+            std::string line;
+            
+            while (std::getline(file, line)) {
+                lines.push_back(line);
+            }
+    
+            file.close();
+            
+            // Вывод содержимого
+            for (const auto& l : lines) {
+                std::cout << l << std::endl;
+                const char* response = l.c_str(); 
+
+                if (send(clientSocket_, response, strlen(response), 0) < 0) {
+                    spdlog::error("Ошибка при попытке получить лог");
+                }
+            }
         }
 };
 
@@ -227,7 +253,6 @@ int main(){
     );
     
     spdlog::set_default_logger(logger);
-    spdlog::info("Тест ротируемых логов");
 
     LaserMark *device = new LaserMark;
     

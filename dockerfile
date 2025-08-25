@@ -1,40 +1,50 @@
-# Используем официальный образ C++ с поддержкой CMake
 FROM ubuntu:22.04 AS builder
 
-# Устанавливаем необходимые зависимости
-RUN apt-get update && \
-    apt-get install -y \
+# Устанавливаем зависимости для сборки
+RUN apt-get update && apt-get install -y \
+    build-essential \
     cmake \
-    g++ \
     git \
-    make \
-    libspdlog-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем исходный код
+# Сначала копируем только CMake файлы для кэширования
 WORKDIR /app
+COPY CMakeLists.txt ./
+COPY src/ ./src/
 
-# Собираем проект
-RUN mkdir build && \
+# Создаем директорию для сборки и собираем проект
+RUN mkdir -p build && \
     cd build && \
     cmake .. && \
-    make
-    
+    make -j$(nproc)
+
 # Финальный образ
 FROM ubuntu:22.04
 
 # Устанавливаем только необходимые runtime зависимости
-RUN apt-get update && \
-    apt-get install -y \
-    libspdlog-dev \
+RUN apt-get update && apt-get install -y \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-COPY --from=builder /app/build/server .
-COPY --from=builder /app/logs ./logs
+# Создаем пользователя для безопасности
+RUN useradd -m appuser
 
-# Открываем порт, который слушает сервер
+# Создаем директорию для логов
+RUN mkdir -p /app/logs && chown appuser:appuser /app/logs
+
+# Копируем собранный бинарник из builder stage
+COPY --from=builder --chown=appuser:appuser /app/build/server /app/server
+
+# Переключаемся на непривилегированного пользователя
+USER appuser
+
+WORKDIR /app
+
+# Устанавливаем переменную окружения для логов
+ENV LOG_DIR=/app/logs
+
+# Экспортируем порт (замените на нужный вам порт)
 EXPOSE 8080
 
-# Запускаем сервер
+# Запускаем приложение
 CMD ["./server"]

@@ -12,7 +12,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-set(LOG_DIR "/home/artem/development/c++/tcp_mark_emulator/logs")  # или "${CMAKE_SOURCE_DIR}/logs"
+set(LOG_DIR "./logs")  # или "${CMAKE_SOURCE_DIR}/logs"
 
 # Создаём папку для логов (если её нет)
 file(MAKE_DIRECTORY ${LOG_DIR})
